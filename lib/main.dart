@@ -1,10 +1,14 @@
 import 'dart:io';
 
+import 'package:external_path/external_path.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
 import 'dart:convert';
+
+import 'package:path_provider/path_provider.dart';
 
 Future<void> main() async {
   await dotenv.load();
@@ -136,6 +140,10 @@ class _AIModelScreenState extends State<AIModelScreen> {
         'model_image': modelImageUrl,
         'garment_image': garmentImageUrl,
         'category': selectedCategory,
+        'flat_lay': selectedPhotoType == 'Model' ? false : true,
+        'remove_garment_background':
+            selectedPhotoType == 'Model' ? false : true,
+        'nsfw_filter': false,
       }),
     );
 
@@ -416,8 +424,48 @@ class OutputImageScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text("Try-On Result")),
       body: Center(
-        child: Image.network(outputUrl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.network(outputUrl),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _downloadImage(context),
+              child: Text("Tải ảnh xuống"),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _downloadImage(BuildContext context) async {
+    try {
+      // Tải ảnh từ URL
+      final response = await http.get(Uri.parse(outputUrl));
+
+      if (response.statusCode == 200) {
+        // Lưu vào thư mục công khai "Pictures"
+        String downloadsDirectory =
+            await ExternalPath.getExternalStoragePublicDirectory(
+          ExternalPath.DIRECTORY_DOWNLOADS,
+        );
+
+        String fileName = 'try_on_result.jpg';
+        File file = File(path.join(downloadsDirectory, fileName));
+
+        await file.writeAsBytes(response.bodyBytes);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Tải ảnh thành công: ${file.path}")),
+        );
+      } else {
+        throw Exception("Không thể tải ảnh");
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Lỗi tải ảnh: $e")),
+      );
+    }
   }
 }
